@@ -161,7 +161,7 @@ const AuthProvider = new GraphQLInputObjectType({
 const SubscriptionType = new GraphQLObjectType({
   name: "Subscription",
   fields: () => ({
-    messsageCreated: {
+    messageCreated: {
       type: MessageType,
       subscribe: () => {
         pubsub.asyncIterator(MESSAGE_CREATED);
@@ -203,16 +203,9 @@ const SignInPayload = new GraphQLObjectType({
 });
 
 const MessageType = new GraphQLObjectType({
-  name: "MessageName",
+  name: "Message",
   fields: () => ({
     _id: { type: new GraphQLNonNull(GraphQLID) },
-    messages: {
-      type: new GraphQLList(MessageType),
-      resolve: async ({ _id }, data) => {
-        const messages = await Message.find({}).toArray();
-        return messages;
-      },
-    },
     sender: {
       type: UserType,
       args: {
@@ -239,43 +232,40 @@ const QueryType = new GraphQLObjectType({
   fields: () => ({
     allUsers: {
       type: new GraphQLList(UserType),
-      resolve: async (_, data, { db: { Users } }) =>
-        await Users.find({}).toArray(),
+      resolve: async () => await User.find(),
     },
     user: {
       type: UserType,
       args: {
         id: { type: new GraphQLNonNull(GraphQLID) },
       },
-      resolve: async (_, { id }, { db: { Users } }) =>
-        await Users.findOne(ObjectId(id)),
+      resolve: async (_, { id }) => await User.findById(id),
     },
     allMessages: {
       type: new GraphQLList(MessageType),
-      resolve: async (_, data) => await Message.find(),
+      resolve: async () => await Message.find(),
+    },
+    message: {
+      type: MessageType,
+      args: {
+        id: { type: new GraphQLNonNull(GraphQLID) },
+      },
+      resolve: async (_, { id }) => await Message.findById(id),
     },
     InboxMessages: {
       type: new GraphQLList(MessageType),
-      args: {
-        _id: { type: new GraphQLNonNull(GraphQLID) },
-      },
-      resolve: async (_, data) => {
-        const messages = await Message.find();
-        return messages.filter((i) => {
-          if (i.link) {
-            return i.link.toString() === data._id && i.parent === null;
-          }
-        });
+      resolve: async (_, __, { user }) => {
+        const { inbox } = await User.findById(user._id);
+        return inbox;
       },
     },
   }),
 });
 
-const graphQLSchemaConfig = {
+const schema = new GraphQLSchema({
   query: QueryType,
   mutation: MutationType,
   subscription: SubscriptionType,
-};
-const schema = new GraphQLSchema(graphQLSchemaConfig);
+});
 
 module.exports = schema;
